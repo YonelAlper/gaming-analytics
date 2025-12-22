@@ -20,29 +20,248 @@
 <div class="container">
   <div class="hero">
     <h1>Analytics Dashboard</h1>
-    <p>SQL-driven insights addressing the defined research questions.</p>
+    <p>
+      This page presents SQL-driven insights addressing the 10 research questions.
+      Visualizations (interactive Plotly HTML files) can be embedded using iframes under each section.
+    </p>
   </div>
 
   <h2>Research Questions</h2>
-  <ol>
-    <li>Who are the top 10 most active players?</li>
-    <li>Which levels have the highest failure rates?</li>
-    <li>Which missions are the hardest to complete?</li>
-    <li>Which cosmetic skins generate the most revenue?</li>
-    <li>Is there a relationship between playtime and spending?</li>
-    <li>Which achievements are the rarest?</li>
-    <li>How does event participation affect player behavior?</li>
-    <li>Which players act as social hubs?</li>
-    <li>At what times of day is player activity highest?</li>
-    <li>Do players who purchase items perform better in missions?</li>
-  </ol>
-
   <p>
-    Each research question is supported by SQL queries and corresponding
-    visualizations presented on this page.
+    Each section includes: (i) a short definition of the metric, (ii) the SQL query used,
+    and (iii) a placeholder area for an embedded interactive chart.
   </p>
 
-  <!-- Plotly visualizations will be embedded here via iframe -->
+  <!-- ===================== RQ1 ===================== -->
+  <details open>
+    <summary><strong>RQ1.</strong> Who are the top 10 most active players based on total playtime?</summary>
+    <p>Metric: total playtime is computed as the sum of <code>active_time_in_mins</code> across sessions.</p>
+
+    <pre><code>SELECT player_id, SUM(active_time_in_mins) AS total_minutes
+FROM ga.game_session
+GROUP BY player_id
+ORDER BY total_minutes DESC
+LIMIT 10;</code></pre>
+
+    <p><em>Visualization placeholder:</em></p>
+    <!-- Create this file later: docs/assets/plots/rq1_top_active_players.html -->
+    <iframe src="assets/plots/rq1_top_active_players.html" width="100%" height="520" style="border:none;">
+    </iframe>
+    <p style="color:rgba(255,255,255,.65); font-size:13px;">
+      If the iframe is blank, create/export the Plotly HTML file with the same name into <code>docs/assets/plots/</code>.
+    </p>
+  </details>
+
+  <!-- ===================== RQ2 ===================== -->
+  <details>
+    <summary><strong>RQ2.</strong> Which levels have the highest failure rates, and what average time does it take to complete them?</summary>
+    <p>
+      Failure rate is computed as the proportion of attempts where <code>success = false</code>.
+      Completion time is approximated with <code>duration_seconds</code> in <code>level_attempt</code>.
+    </p>
+
+    <pre><code>SELECT
+  l.level_id, l.level_name,
+  AVG(CASE WHEN la.success THEN 0 ELSE 1 END)::numeric AS failure_rate,
+  AVG(la.duration_seconds)::numeric AS avg_duration_sec
+FROM ga.level_attempt la
+JOIN ga.level l ON l.level_id = la.level_id
+GROUP BY l.level_id, l.level_name
+ORDER BY failure_rate DESC, avg_duration_sec DESC;</code></pre>
+
+    <!-- docs/assets/plots/rq2_level_failure_rate.html -->
+    <iframe src="assets/plots/rq2_level_failure_rate.html" width="100%" height="520" style="border:none;"></iframe>
+  </details>
+
+  <!-- ===================== RQ3 ===================== -->
+  <details>
+    <summary><strong>RQ3.</strong> Which missions are attempted the most but completed the least (hardest missions)?</summary>
+    <p>
+      We report attempts and success rate. Hard missions typically have high attempts and low success rate.
+    </p>
+
+    <pre><code>SELECT
+  m.mission_id, m.mission_name,
+  COUNT(*) AS attempts,
+  AVG(CASE WHEN ma.success THEN 1 ELSE 0 END)::numeric AS success_rate
+FROM ga.mission_attempt ma
+JOIN ga.mission m ON m.mission_id = ma.mission_id
+GROUP BY m.mission_id, m.mission_name
+HAVING COUNT(*) >= 5
+ORDER BY success_rate ASC, attempts DESC;</code></pre>
+
+    <!-- docs/assets/plots/rq3_hardest_missions.html -->
+    <iframe src="assets/plots/rq3_hardest_missions.html" width="100%" height="520" style="border:none;"></iframe>
+  </details>
+
+  <!-- ===================== RQ4 ===================== -->
+  <details>
+    <summary><strong>RQ4.</strong> Which virtual items (skins) generate the most revenue?</summary>
+    <p>
+      Revenue is computed as <code>SUM(quantity * unit_price)</code>.
+      Note: currencies may differ (e.g., GEM vs USD). For a strict comparison, filter by currency.
+    </p>
+
+    <pre><code>SELECT
+  s.skin_id, s.skin_name,
+  SUM(p.quantity * p.unit_price) AS revenue
+FROM ga.skin_purchase p
+JOIN ga.item_skin s ON s.skin_id = p.skin_id
+GROUP BY s.skin_id, s.skin_name
+ORDER BY revenue DESC
+LIMIT 10;</code></pre>
+
+    <!-- docs/assets/plots/rq4_top_revenue_skins.html -->
+    <iframe src="assets/plots/rq4_top_revenue_skins.html" width="100%" height="520" style="border:none;"></iframe>
+  </details>
+
+  <!-- ===================== RQ5 ===================== -->
+  <details>
+    <summary><strong>RQ5.</strong> Is there a correlation between playtime and total spending?</summary>
+    <p>
+      We create a player-level dataset (total_minutes vs total_spend) and compute correlation in Python.
+    </p>
+
+    <pre><code>WITH play AS (
+  SELECT player_id, SUM(active_time_in_mins)::numeric AS total_minutes
+  FROM ga.game_session
+  GROUP BY player_id
+),
+spend AS (
+  SELECT player_id, SUM(quantity*unit_price)::numeric AS total_spend
+  FROM ga.skin_purchase
+  GROUP BY player_id
+)
+SELECT
+  p.player_id,
+  p.total_minutes,
+  COALESCE(s.total_spend, 0) AS total_spend
+FROM play p
+LEFT JOIN spend s USING(player_id);</code></pre>
+
+    <!-- docs/assets/plots/rq5_playtime_vs_spending.html -->
+    <iframe src="assets/plots/rq5_playtime_vs_spending.html" width="100%" height="520" style="border:none;"></iframe>
+  </details>
+
+  <!-- ===================== RQ6 ===================== -->
+  <details>
+    <summary><strong>RQ6.</strong> Which achievements are the rarest and which are earned most frequently?</summary>
+    <p>
+      We count how many players earned each achievement. Lowest counts are rarest, highest counts are most frequent.
+    </p>
+
+    <pre><code>SELECT
+  a.achievement_id, a.achievement_name,
+  COUNT(pa.player_id) AS earned_count
+FROM ga.achievement a
+LEFT JOIN ga.player_achievement pa ON pa.achievement_id = a.achievement_id
+GROUP BY a.achievement_id, a.achievement_name
+ORDER BY earned_count ASC;</code></pre>
+
+    <!-- docs/assets/plots/rq6_achievement_frequency.html -->
+    <iframe src="assets/plots/rq6_achievement_frequency.html" width="100%" height="520" style="border:none;"></iframe>
+  </details>
+
+  <!-- ===================== RQ7 ===================== -->
+  <details>
+    <summary><strong>RQ7.</strong> How do special in-game events affect player activity and spending?</summary>
+    <p>
+      Since the event table does not include event time windows, we compare participants vs non-participants
+      in terms of average playtime and spending.
+    </p>
+
+    <pre><code>WITH play AS (
+  SELECT player_id, SUM(active_time_in_mins)::numeric AS total_minutes
+  FROM ga.game_session
+  GROUP BY player_id
+),
+spend AS (
+  SELECT player_id, SUM(quantity*unit_price)::numeric AS total_spend
+  FROM ga.skin_purchase
+  GROUP BY player_id
+)
+SELECT
+  e.event_id,
+  e.event_name,
+  ep.participated,
+  AVG(COALESCE(play.total_minutes,0)) AS avg_minutes,
+  AVG(COALESCE(spend.total_spend,0))  AS avg_spend
+FROM ga.event_participation ep
+JOIN ga.event e ON e.event_id = ep.event_id
+LEFT JOIN play  ON play.player_id = ep.player_id
+LEFT JOIN spend ON spend.player_id = ep.player_id
+GROUP BY e.event_id, e.event_name, ep.participated
+ORDER BY e.event_id, ep.participated DESC;</code></pre>
+
+    <!-- docs/assets/plots/rq7_event_effects.html -->
+    <iframe src="assets/plots/rq7_event_effects.html" width="100%" height="520" style="border:none;"></iframe>
+  </details>
+
+  <!-- ===================== RQ8 ===================== -->
+  <details>
+    <summary><strong>RQ8.</strong> Which players have the largest number of friendships (social hubs)?</summary>
+    <p>
+      Friendships are undirected and stored once (player_id &lt; friend_id). We count both ends to compute degree.
+    </p>
+
+    <pre><code>SELECT player_id, SUM(cnt) AS friends
+FROM (
+  SELECT player_id, COUNT(*) AS cnt FROM ga.friendship GROUP BY player_id
+  UNION ALL
+  SELECT friend_id AS player_id, COUNT(*) AS cnt FROM ga.friendship GROUP BY friend_id
+) x
+GROUP BY player_id
+ORDER BY friends DESC
+LIMIT 10;</code></pre>
+
+    <!-- docs/assets/plots/rq8_social_hubs.html -->
+    <iframe src="assets/plots/rq8_social_hubs.html" width="100%" height="520" style="border:none;"></iframe>
+  </details>
+
+  <!-- ===================== RQ9 ===================== -->
+  <details>
+    <summary><strong>RQ9.</strong> What times of day have the highest number of active sessions?</summary>
+    <p>
+      We aggregate sessions by the hour of <code>start_time</code>.
+    </p>
+
+    <pre><code>SELECT EXTRACT(HOUR FROM start_time)::int AS hour, COUNT(*) AS sessions
+FROM ga.game_session
+GROUP BY hour
+ORDER BY hour;</code></pre>
+
+    <!-- docs/assets/plots/rq9_peak_hours.html -->
+    <iframe src="assets/plots/rq9_peak_hours.html" width="100%" height="520" style="border:none;"></iframe>
+  </details>
+
+  <!-- ===================== RQ10 ===================== -->
+  <details>
+    <summary><strong>RQ10.</strong> Do players who purchase items perform better in missions (win-rate comparison)?</summary>
+    <p>
+      We compare mission win rates between buyers and non-buyers. Since purchases are cosmetic (skins),
+      results should be interpreted as behavioral segmentation rather than causal performance improvement.
+    </p>
+
+    <pre><code>WITH buyers AS (
+  SELECT DISTINCT player_id FROM ga.skin_purchase
+),
+wr AS (
+  SELECT player_id, AVG(CASE WHEN success THEN 1 ELSE 0 END)::numeric AS win_rate
+  FROM ga.mission_attempt
+  GROUP BY player_id
+)
+SELECT
+  CASE WHEN b.player_id IS NULL THEN 'Non-buyer' ELSE 'Buyer' END AS group_name,
+  AVG(w.win_rate) AS avg_win_rate,
+  COUNT(*) AS players
+FROM wr w
+LEFT JOIN buyers b ON b.player_id = w.player_id
+GROUP BY group_name;</code></pre>
+
+    <!-- docs/assets/plots/rq10_buyers_vs_nonbuyers_winrate.html -->
+    <iframe src="assets/plots/rq10_buyers_vs_nonbuyers_winrate.html" width="100%" height="520" style="border:none;"></iframe>
+  </details>
+
 </div>
 
 </body>

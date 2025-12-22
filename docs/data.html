@@ -1,1 +1,51 @@
-<h1>Coming Soon</h1>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Data</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html">Home</a>
+  <a href="schema.html">Schema</a>
+  <a href="data.html">Data</a>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="methods.html">Methods</a>
+  <a href="results.html">Results</a>
+</nav>
+
+<div class="container">
+  <div class="hero">
+    <h1>Data</h1>
+    <p>CSV source files, PostgreSQL import process, and random data generation strategy.</p>
+  </div>
+
+  <h2>Source CSV Files</h2>
+  <ul>
+    <li>player.csv</li>
+    <li>level.csv</li>
+    <li>mission.csv</li>
+    <li>item_skin.csv</li>
+    <li>achievement.csv</li>
+    <li>event.csv</li>
+    <li>game_session.csv</li>
+  </ul>
+
+  <h2>Random Data Generation</h2>
+  <p>
+    Relational tables such as attempts, purchases, friendships, and event participation
+    were generated directly in PostgreSQL using <code>random()</code>,
+    <code>generate_series()</code>, and conflict-handling mechanisms.
+  </p>
+
+  <pre>
+INSERT INTO ga.friendship (...)
+ON CONFLICT (player_id, friend_id) DO NOTHING;
+  </pre>
+</div>
+
+</body>
+</html>
